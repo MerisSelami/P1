@@ -1,93 +1,82 @@
-#include "lab.h"
-#include <stdio.h>
+#include "harness/unity.h"
+#include "../src/lab.h"
 #include <string.h>
+#include <stdlib.h>
 
-list_t *list_init(void (*destroy_data)(void *), int (*compare_to)(const void *, const void *)) {
-    list_t *list = (list_t *)malloc(sizeof(list_t));
-    if (!list) return NULL;
-
-    list->destroy_data = destroy_data;
-    list->compare_to = compare_to;
-    list->size = 0;
-
-    list->head = (node_t *)malloc(sizeof(node_t));
-    if (!list->head) {
-        free(list);
-        return NULL;
-    }
-
-    list->head->data = NULL;
-    list->head->next = list->head;
-    list->head->prev = list->head;
-    return list;
+void destroy_data(void *data) {
+    free(data);
 }
 
-void list_destroy(list_t **list) {
-    if (!list || !*list) return;
-
-    node_t *current = (*list)->head->next;
-    while (current != (*list)->head) {
-        node_t *temp = current;
-        current = current->next;
-        if ((*list)->destroy_data) {
-            (*list)->destroy_data(temp->data);
-        }
-        free(temp);
-    }
-
-    free((*list)->head);
-    free(*list);
-    *list = NULL;
+int compare_to(const void *a, const void *b) {
+    return strcmp((const char *)a, (const char *)b);
 }
 
-list_t *list_add(list_t *list, void *data) {
-    if (!list) return NULL;
+void setUp(void) {}
+void tearDown(void) {}
 
-    node_t *new_node = (node_t *)malloc(sizeof(node_t));
-    if (!new_node) return NULL;
-
-    new_node->data = data;
-    new_node->next = list->head->next;
-    new_node->prev = list->head;
-
-    list->head->next->prev = new_node;
-    list->head->next = new_node;
-
-    list->size++;
-    return list;
+void test_list_init_and_destroy(void) {
+    list_t *list = list_init(destroy_data, compare_to);
+    TEST_ASSERT_NOT_NULL(list);
+    TEST_ASSERT_NOT_NULL(list->head);
+    TEST_ASSERT_EQUAL(0, list->size);
+    list_destroy(&list);
+    TEST_ASSERT_NULL(list);
 }
 
-void *list_remove_index(list_t *list, size_t index) {
-    if (!list || index >= list->size) return NULL;
+void test_list_add(void) {
+    list_t *list = list_init(destroy_data, compare_to);
 
-    node_t *current = list->head->next;
-    for (size_t i = 0; i < index; i++) {
-        current = current->next;
-    }
+    char *data = strdup("Test Data");
+    list_add(list, data);
 
-    current->prev->next = current->next;
-    current->next->prev = current->prev;
+    TEST_ASSERT_EQUAL(1, list->size);
+    TEST_ASSERT_EQUAL_STRING("Test Data", (char *)list->head->next->data);
 
-    void *data = current->data;
-    free(current);
-    list->size--;
-
-    return data;
+    list_destroy(&list);
 }
 
-int list_indexof(list_t *list, void *data) {
-    if (!list) return -1;
+void test_list_remove_index(void) {
+    list_t *list = list_init(destroy_data, compare_to);
 
-    node_t *current = list->head->next;
-    int index = 0;
+    char *data1 = strdup("First");
+    char *data2 = strdup("Second");
+    list_add(list, data1);
+    list_add(list, data2);
 
-    while (current != list->head) {
-        if (list->compare_to && list->compare_to(current->data, data) == 0) {
-            return index;
-        }
-        current = current->next;
-        index++;
-    }
+    void *removed = list_remove_index(list, 0);
+    TEST_ASSERT_EQUAL_STRING("Second", (char *)removed);
+    free(removed);
 
-    return -1;
+    TEST_ASSERT_EQUAL(1, list->size);
+
+    list_destroy(&list);
+}
+
+void test_list_indexof(void) {
+    list_t *list = list_init(destroy_data, compare_to);
+
+    char *data1 = strdup("First");
+    char *data2 = strdup("Second");
+    list_add(list, data1);
+    list_add(list, data2);
+
+    int index = list_indexof(list, "Second");
+    TEST_ASSERT_EQUAL(0, index);
+
+    index = list_indexof(list, "First");
+    TEST_ASSERT_EQUAL(1, index);
+
+    index = list_indexof(list, "Nonexistent");
+    TEST_ASSERT_EQUAL(-1, index);
+
+    list_destroy(&list);
+}
+
+int main(void) {
+    UNITY_BEGIN();
+    RUN_TEST(test_list_init_and_destroy);
+    RUN_TEST(test_list_add);
+    RUN_TEST(test_list_remove_index);
+    RUN_TEST(test_list_indexof);
+    return UNITY_END();
 }
